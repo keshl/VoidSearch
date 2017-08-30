@@ -7,6 +7,9 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
+
+	"github.com/olekukonko/tablewriter"
 )
 
 var (
@@ -34,19 +37,45 @@ var (
 )
 
 func main() {
-	reader := bufio.NewReader(os.Stdin)
-
-	fmt.Printf("Package: ")
-	p, _, err := reader.ReadLine() //get that c crap out of here
-	pak := string(p)
-	//pak, err := reader.ReadString('\n')
-	if err != nil {
-		fmt.Println(err)
+	if len(os.Args) < 2 {
+		fmt.Println("usage:", os.Args[0], "<package>")
 		os.Exit(1)
 	}
+	pak := os.Args[1]
 
 	var compiled = regexp.MustCompile(regex)
 	var bodyReader *bufio.Reader
+	var table = tablewriter.NewWriter(os.Stdout)
+
+	table.SetCenterSeparator("")
+	table.SetRowSeparator("")
+	table.SetColumnSeparator("")
+	table.SetHeader([]string{"Repo", "Name", "Version", "Revision", "Arch", "Size"})
+
+	ready := make(chan struct{})
+	go func() {
+		var count = 0
+		for {
+			select {
+			case <-ready:
+				fmt.Println("\r\r")
+				return
+			case <-time.After(time.Second * 1):
+				if count == 4 {
+					count = 0
+					fmt.Printf("\r\r")
+					fmt.Printf("Getting packages from server       ")
+					fmt.Printf("\r\r")
+				}
+				if count == 0 {
+					fmt.Printf("Getting packages from server")
+				}
+				fmt.Printf(".")
+				count++
+			}
+		}
+	}()
+
 	for p := 0; p < len(repos); p++ {
 		req, err := http.Get(repos[p])
 		if err != nil {
@@ -55,24 +84,24 @@ func main() {
 		}
 
 		bodyReader = bufio.NewReader(req.Body)
-
 		for {
 			l, _, err := bodyReader.ReadLine()
 			if err != nil {
 				break
 			}
-			exp := compiled.FindAllString(string(l), -1)
+
+			readed := string(l)
+
+			exp := compiled.FindAllString(readed, -1)
 			if len(exp) > 0 {
-				a := regexp.MustCompile(`<a href="`)
-				s := a.Split(strings.Join(exp, ""), -1)
-				a = regexp.MustCompile(`">([^<]*)-([^<-]*)_([0-9]+)\.([^.]*)\.xbps<\/a>`)
-				s = a.Split(strings.Join(s, ""), -1)
-				//fmt.Println(s[0])
-				if strings.Contains(s[0], pak) {
-					fmt.Println(repoNames[p], strings.Join(s, ""))
+				s := regexp.MustCompile(regex).FindStringSubmatch(readed)
+				if strings.Contains(s[1], pak) {
+					s[0] = repoNames[p]
+					table.Append(s)
 				}
-				//fmt.Println(repoNames[p], compiled.FindAllString(string(l), -1))
 			}
 		}
 	}
+	ready <- struct{}{}
+	table.Render()
 }
