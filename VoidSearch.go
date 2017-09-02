@@ -53,25 +53,19 @@ func main() {
 	table.SetHeader([]string{"Repo", "Name", "Version", "Revision", "Arch", "Size"})
 
 	ready := make(chan struct{})
+	found := make(chan struct{})
+
 	go func() {
-		var count = 0
+		var n int = 0
 		for {
 			select {
 			case <-ready:
 				fmt.Println("\r\r")
 				return
-			case <-time.After(time.Second * 1):
-				if count == 4 {
-					count = 0
-					fmt.Printf("\r\r")
-					fmt.Printf("Getting packages from server       ")
-					fmt.Printf("\r\r")
-				}
-				if count == 0 {
-					fmt.Printf("Getting packages from server")
-				}
-				fmt.Printf(".")
-				count++
+			case <-found:
+				n++
+			case <-time.After(time.Millisecond * 300):
+				fmt.Printf("\r\r%d packages found.", n)
 			}
 		}
 	}()
@@ -96,6 +90,7 @@ func main() {
 			if len(exp) > 0 {
 				s := regexp.MustCompile(regex).FindStringSubmatch(readed)
 				if strings.Contains(s[1], pak) {
+					found <- struct{}{}
 					s[0] = repoNames[p]
 					table.Append(s)
 				}
