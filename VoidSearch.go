@@ -88,7 +88,7 @@ func main() {
 
 			exp := compiled.FindAllString(readed, -1)
 			if len(exp) > 0 {
-				s := regexp.MustCompile(regex).FindStringSubmatch(readed)
+				s := compiled.FindStringSubmatch(readed)
 				if strings.Contains(s[1], pak) {
 					found <- struct{}{}
 					s[0] = repoNames[p]
